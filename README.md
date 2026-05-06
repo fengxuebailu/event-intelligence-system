@@ -8,6 +8,30 @@
 
 ---
 
+## 界面预览
+
+**总览页**：4 个统计指标卡 + 主题事件分布环形图 + 36 月密度热力图。
+
+![Overview](docs/screenshots/01-overview.png)
+
+**事件演化图谱**：30 个事件节点按主题着色，27 条演化关系按类型着色（triggers / evolves_to / contextualizes 等），力导向布局，节点尺寸映射 intensity。
+
+![Event Evolution Graph](docs/screenshots/02-event-graph.png)
+
+**跨语言证据搜索**：单语种 query 同时返回中英证据片段，左右双栏对照，query 词高亮，附相似度评分条。
+
+![Cross-lingual Search](docs/screenshots/03-cross-lingual-search.png)
+
+**证据约束智能简报**：风险评分环 + 跨语言一致性条 + 关键参与方 chips + 时间线 + 多个 section（背景概述 / 关键事件 / 多源证据 / 趋势研判），正文里 `[N]` 引用 pill 可悬停查看原文 snippet。
+
+![Evidence Briefing](docs/screenshots/04-evidence-briefing.png)
+
+**事件详情抽屉**：从任意视图点击事件可唤出，含中英对照标题、强度条、参与方、中英摘要切换、多源证据折叠卡片、相关事件链。
+
+![Event Detail Drawer](docs/screenshots/05-event-detail-drawer.png)
+
+---
+
 ## 核心特性
 
 - **跨语言检索**：中英双语查询统一映射到同一语义空间，结果同时返回中英证据片段，并强制至少一个反向语言证据，避免单语言信息茧房。
