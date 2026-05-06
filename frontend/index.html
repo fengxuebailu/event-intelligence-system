@@ -1,0 +1,433 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Event Intelligence · 事件情报</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'Noto Sans SC', 'system-ui', 'sans-serif'] },
+          colors: { brand: '#0ea5e9', accent: '#f97316' }
+        }
+      }
+    };
+  </script>
+  <link rel="stylesheet" href="styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+  <script src="app.js"></script>
+  <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+</head>
+<body class="bg-[#fafafa] text-gray-800 font-sans antialiased" x-data="dashboard()" x-init="init()">
+
+<!-- ===== NAVBAR ===== -->
+<nav class="sticky top-0 z-30 bg-white/80 backdrop-blur border-b border-gray-200">
+  <div class="max-w-7xl mx-auto px-6 h-16 flex items-center gap-8">
+    <div class="flex items-center gap-3">
+      <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-brand to-cyan-500 flex items-center justify-center text-white font-semibold tabular-nums">E</div>
+      <div class="leading-tight">
+        <div class="text-sm font-semibold text-gray-900">Event Intelligence</div>
+        <div class="text-[11px] text-gray-500">事件情报系统</div>
+      </div>
+    </div>
+    <div class="flex-1 flex items-center gap-1">
+      <template x-for="t in tabs" :key="t.id">
+        <button @click="view = t.id" class="px-3 py-1.5 rounded-md text-sm transition-colors"
+                :class="view === t.id ? 'bg-gray-100 text-gray-900 font-medium' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'">
+          <span x-text="lang === 'zh' ? t.label_zh : t.label_en"></span>
+        </button>
+      </template>
+    </div>
+    <div class="flex items-center gap-2">
+      <div class="flex items-center bg-gray-100 rounded-md p-0.5 text-xs">
+        <button @click="lang='zh'" class="px-2 py-1 rounded" :class="lang==='zh' ? 'bg-white shadow-sm font-medium' : 'text-gray-500'">中</button>
+        <button @click="lang='en'" class="px-2 py-1 rounded" :class="lang==='en' ? 'bg-white shadow-sm font-medium' : 'text-gray-500'">EN</button>
+      </div>
+      <button @click="apiOk ? null : checkHealth()" class="p-2 rounded-md hover:bg-gray-100" :title="apiOk ? 'API connected' : 'Disconnected — click to retry'">
+        <span class="inline-block w-2 h-2 rounded-full" :class="apiOk ? 'bg-emerald-500' : 'bg-rose-400'"></span>
+      </button>
+    </div>
+  </div>
+</nav>
+
+<!-- ===== PAGE HEADER ===== -->
+<header class="max-w-7xl mx-auto px-6 pt-10 pb-6">
+  <h1 class="text-3xl font-semibold tracking-tight text-gray-900" x-text="lang==='zh' ? currentTab.title_zh : currentTab.title_en"></h1>
+  <p class="mt-2 text-sm text-gray-500" x-text="lang==='zh' ? currentTab.desc_zh : currentTab.desc_en"></p>
+</header>
+
+<!-- ===== GLOBAL ERROR BANNER ===== -->
+<div x-show="!apiOk" x-transition class="max-w-7xl mx-auto px-6 mb-4">
+  <div class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 flex items-start gap-3 text-sm text-rose-800">
+    <i data-lucide="wifi-off" class="w-4 h-4 mt-0.5"></i>
+    <div class="flex-1">
+      <div class="font-medium" x-text="lang==='zh' ? '后端服务未连接' : 'Backend service not reachable'"></div>
+      <div class="text-rose-600 mt-0.5" x-text="lang==='zh' ? '请确认 FastAPI 已在端口 8000 启动；点击右上角圆点重试。' : 'Make sure FastAPI runs on :8000. Click the dot at top-right to retry.'"></div>
+    </div>
+    <button @click="checkHealth()" class="text-rose-700 hover:bg-rose-100 px-2 py-1 rounded text-xs" x-text="lang==='zh' ? '重试' : 'Retry'"></button>
+  </div>
+</div>
+
+<!-- ===== MAIN CONTENT ===== -->
+<main class="max-w-7xl mx-auto px-6 pb-16">
+
+  <!-- View 1: Overview -->
+  <section x-show="view==='overview'" x-transition.opacity>
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+      <template x-for="(card, i) in statCards" :key="i">
+        <div class="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
+          <div class="flex items-center justify-between text-gray-500 text-xs">
+            <span x-text="lang==='zh' ? card.label_zh : card.label_en"></span>
+            <i :data-lucide="card.icon" class="w-4 h-4"></i>
+          </div>
+          <div class="mt-3 text-3xl font-bold tabular-nums text-gray-900" x-text="card.value"></div>
+          <div class="mt-1 text-xs text-gray-400" x-text="lang==='zh' ? card.hint_zh : card.hint_en"></div>
+        </div>
+      </template>
+    </div>
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 mb-6">
+      <div class="lg:col-span-5 bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="text-base font-semibold text-gray-900" x-text="lang==='zh' ? '主题事件分布' : 'Topic distribution'"></h2>
+          <span class="text-xs text-gray-400" x-text="lang==='zh' ? '点击主题查看图谱' : 'click topic to open graph'"></span>
+        </div>
+        <div id="topic-pie" class="w-full h-64"></div>
+        <div class="mt-3 grid grid-cols-1 gap-1.5">
+          <template x-for="t in topics" :key="t.topic_id">
+            <button @click="view='graph'; selectedTopic=t.topic_id; setTimeout(()=>renderGraph(), 80)"
+                    class="flex items-center justify-between px-3 py-2 rounded-md hover:bg-gray-50 border border-transparent hover:border-gray-200 text-left">
+              <div class="flex items-center gap-2.5">
+                <span class="w-2.5 h-2.5 rounded-sm" :style="`background:${t.color}`"></span>
+                <span class="text-sm text-gray-800" x-text="lang==='zh' ? t.name_zh : t.name_en"></span>
+              </div>
+              <span class="text-xs text-gray-500 tabular-nums" x-text="(t.event_count||0)+' '+ (lang==='zh' ? '事件' : 'events')"></span>
+            </button>
+          </template>
+        </div>
+      </div>
+      <div class="lg:col-span-7 bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="text-base font-semibold text-gray-900" x-text="lang==='zh' ? '事件密度（按月）' : 'Event density (monthly)'"></h2>
+          <span class="text-xs text-gray-400" x-text="lang==='zh' ? '过去 36 个月' : 'last 36 months'"></span>
+        </div>
+        <div id="density-heat" class="w-full h-72"></div>
+      </div>
+    </div>
+    <div class="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
+      <h2 class="text-base font-semibold text-gray-900 mb-4" x-text="lang==='zh' ? '近期重要事件' : 'Recent major events'"></h2>
+      <ol class="relative border-l border-gray-200 ml-2">
+        <template x-for="ev in topEvents" :key="ev.event_id">
+          <li class="ml-5 pb-5 last:pb-0">
+            <span class="absolute -left-1.5 w-3 h-3 rounded-full ring-2 ring-white" :style="`background:${topicColor(ev.topic_id)}`"></span>
+            <button @click="openDetail(ev.event_id)" class="text-left group">
+              <div class="text-xs text-gray-400 tabular-nums" x-text="ev.date + ' · ' + ev.location"></div>
+              <div class="mt-0.5 text-sm font-medium text-gray-900 group-hover:text-brand" x-text="lang==='zh' ? ev.title_zh : ev.title_en"></div>
+              <div class="mt-1 text-xs text-gray-500 line-clamp-2 max-w-3xl" x-text="lang==='zh' ? ev.summary_zh : ev.summary_en"></div>
+              <div class="mt-1.5 flex items-center gap-2 text-[11px]">
+                <span class="px-1.5 py-0.5 rounded bg-gray-100 text-gray-600" x-text="ev.category"></span>
+                <span class="px-1.5 py-0.5 rounded bg-orange-50 text-orange-600 tabular-nums" x-text="'intensity '+ev.intensity"></span>
+              </div>
+            </button>
+          </li>
+        </template>
+      </ol>
+    </div>
+  </section>
+
+  <!-- View 2: Event Graph -->
+  <section x-show="view==='graph'" x-transition.opacity>
+    <div class="bg-white border border-gray-200 rounded-xl p-4 shadow-sm mb-4">
+      <div class="flex flex-wrap items-center gap-2">
+        <button @click="selectedTopic=null; renderGraph()" class="px-3 py-1.5 rounded-md text-xs border" :class="!selectedTopic ? 'bg-gray-900 text-white border-gray-900' : 'border-gray-200 text-gray-600 hover:bg-gray-50'" x-text="lang==='zh' ? '全部' : 'All'"></button>
+        <template x-for="t in topics" :key="t.topic_id">
+          <button @click="selectedTopic=t.topic_id; renderGraph()" class="px-3 py-1.5 rounded-md text-xs border flex items-center gap-1.5"
+                  :class="selectedTopic===t.topic_id ? 'border-gray-900 bg-gray-900 text-white' : 'border-gray-200 text-gray-700 hover:bg-gray-50'">
+            <span class="w-2 h-2 rounded-sm" :style="`background:${t.color}`"></span>
+            <span x-text="lang==='zh' ? t.name_zh : t.name_en"></span>
+          </button>
+        </template>
+        <div class="flex-1"></div>
+        <button @click="renderGraph(true)" class="text-xs text-gray-500 hover:text-gray-900 px-2 py-1 flex items-center gap-1">
+          <i data-lucide="rotate-cw" class="w-3 h-3"></i><span x-text="lang==='zh' ? '重置布局' : 'Reset layout'"></span>
+        </button>
+        <div class="text-[11px] text-gray-400 flex items-center gap-2">
+          <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-gray-400"></span><span x-text="lang==='zh' ? '小强度' : 'low'"></span></span>
+          <span class="inline-flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-gray-500"></span><span x-text="lang==='zh' ? '高强度' : 'high'"></span></span>
+        </div>
+      </div>
+    </div>
+    <div class="bg-white border border-gray-200 rounded-xl shadow-sm relative">
+      <div id="event-graph" class="w-full" style="height:680px;"></div>
+      <div x-show="graphLoading" class="absolute inset-0 flex items-center justify-center bg-white/60 text-xs text-gray-400" x-text="lang==='zh' ? '加载中…' : 'Loading…'"></div>
+    </div>
+    <div class="bg-white border border-gray-200 rounded-xl p-4 shadow-sm mt-4">
+      <h2 class="text-sm font-semibold text-gray-900 mb-2" x-text="lang==='zh' ? '主题强度时间线' : 'Topic intensity timeline'"></h2>
+      <div id="graph-timeline" class="w-full h-32"></div>
+    </div>
+  </section>
+
+  <!-- View 3: Cross-lingual Search -->
+  <section x-show="view==='search'" x-transition.opacity>
+    <div class="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
+      <div class="relative">
+        <i data-lucide="search" class="w-4 h-4 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2"></i>
+        <input x-model="searchQuery" @keydown.enter="runSearch()" type="text"
+               class="w-full pl-11 pr-28 py-3.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand text-sm"
+               :placeholder="lang==='zh' ? '搜索：半导体出口管制、DeepSeek、AI 监管…' : 'Search: chip export controls, DeepSeek, AI regulation…'" />
+        <button @click="runSearch()" class="absolute right-2 top-1/2 -translate-y-1/2 px-4 py-2 bg-gray-900 text-white text-xs rounded-md hover:bg-gray-800" x-text="lang==='zh' ? '搜索' : 'Search'"></button>
+      </div>
+      <div class="mt-3 flex flex-wrap items-center gap-1.5 text-xs text-gray-500">
+        <span x-text="lang==='zh' ? '试试：' : 'Try:'"></span>
+        <template x-for="q in (lang==='zh' ? sampleQueries.zh : sampleQueries.en)" :key="q">
+          <button @click="searchQuery=q; runSearch()" class="px-2 py-1 rounded-md bg-gray-100 hover:bg-gray-200 text-gray-700" x-text="q"></button>
+        </template>
+      </div>
+    </div>
+    <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+      <template x-for="col in [{lang:'zh', label_zh:'中文证据', label_en:'Chinese evidence'},{lang:'en', label_zh:'英文证据', label_en:'English evidence'}]" :key="col.lang">
+        <div class="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="text-sm font-semibold text-gray-900" x-text="lang==='zh' ? col.label_zh : col.label_en"></h3>
+            <span class="text-[11px] text-gray-400 tabular-nums" x-text="searchEvidenceFor(col.lang).length + (lang==='zh' ? ' 条' : ' items')"></span>
+          </div>
+          <div x-show="searchLoading" class="space-y-2">
+            <div class="h-16 bg-gray-100 rounded-md animate-pulse"></div>
+            <div class="h-16 bg-gray-100 rounded-md animate-pulse"></div>
+            <div class="h-16 bg-gray-100 rounded-md animate-pulse"></div>
+          </div>
+          <div x-show="!searchLoading && searchResults.length===0" class="text-center py-12 text-gray-400">
+            <i data-lucide="search-x" class="w-8 h-8 mx-auto mb-2"></i>
+            <div class="text-xs" x-text="lang==='zh' ? '输入查询以查看结果' : 'Enter a query to see results'"></div>
+          </div>
+          <div x-show="!searchLoading" class="space-y-2.5">
+            <template x-for="r in searchEvidenceFor(col.lang)" :key="r.event_id+'_'+r.evIdx">
+              <div class="border border-gray-200 rounded-lg p-3 hover:border-brand/40 transition-colors">
+                <div class="flex items-start justify-between gap-3">
+                  <button @click="openDetail(r.event_id)" class="text-left flex-1">
+                    <div class="text-sm font-medium text-gray-900" x-text="lang==='zh' ? r.title_zh : r.title_en"></div>
+                    <div class="text-[11px] text-gray-400 mt-0.5 tabular-nums" x-text="r.date"></div>
+                  </button>
+                  <div class="flex flex-col items-end shrink-0">
+                    <div class="text-[11px] text-gray-500 tabular-nums" x-text="(r.score||0).toFixed(2)"></div>
+                    <div class="w-12 h-1 bg-gray-100 rounded-full mt-0.5">
+                      <div class="h-full bg-brand rounded-full" :style="`width:${Math.min(100, (r.score||0)*100)}%`"></div>
+                    </div>
+                  </div>
+                </div>
+                <p class="mt-2 text-xs text-gray-600 leading-relaxed line-clamp-3" x-html="highlightSnippet(r.snippet, searchQuery)"></p>
+              </div>
+            </template>
+          </div>
+        </div>
+      </template>
+    </div>
+  </section>
+
+  <!-- View 4: Briefing Generator -->
+  <section x-show="view==='briefing'" x-transition.opacity>
+    <div class="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div>
+          <label class="text-xs text-gray-500" x-text="lang==='zh' ? '主题' : 'Topic'"></label>
+          <div class="mt-2 flex flex-wrap gap-1.5">
+            <button @click="brief.topic=null" class="px-2.5 py-1 rounded-md text-xs border" :class="!brief.topic ? 'bg-gray-900 text-white border-gray-900' : 'border-gray-200 text-gray-600 hover:bg-gray-50'" x-text="lang==='zh' ? '不限' : 'Any'"></button>
+            <template x-for="t in topics" :key="t.topic_id">
+              <button @click="brief.topic=t.topic_id" class="px-2.5 py-1 rounded-md text-xs border flex items-center gap-1.5" :class="brief.topic===t.topic_id ? 'bg-gray-900 text-white border-gray-900' : 'border-gray-200 hover:bg-gray-50'">
+                <span class="w-2 h-2 rounded-sm" :style="`background:${t.color}`"></span>
+                <span x-text="lang==='zh' ? t.name_zh : t.name_en"></span>
+              </button>
+            </template>
+          </div>
+        </div>
+        <div>
+          <label class="text-xs text-gray-500" x-text="lang==='zh' ? '语言' : 'Language'"></label>
+          <div class="mt-2 inline-flex p-0.5 bg-gray-100 rounded-md text-xs">
+            <button @click="brief.language='zh'" class="px-3 py-1 rounded" :class="brief.language==='zh' ? 'bg-white shadow-sm font-medium' : 'text-gray-500'">中文</button>
+            <button @click="brief.language='en'" class="px-3 py-1 rounded" :class="brief.language==='en' ? 'bg-white shadow-sm font-medium' : 'text-gray-500'">English</button>
+          </div>
+        </div>
+        <div>
+          <label class="text-xs text-gray-500" x-text="lang==='zh' ? '风格' : 'Style'"></label>
+          <div class="mt-2 inline-flex p-0.5 bg-gray-100 rounded-md text-xs">
+            <template x-for="s in [{id:'executive',zh:'高管',en:'Executive'},{id:'analytical',zh:'分析',en:'Analytical'},{id:'timeline',zh:'时间线',en:'Timeline'}]" :key="s.id">
+              <button @click="brief.style=s.id" class="px-3 py-1 rounded" :class="brief.style===s.id ? 'bg-white shadow-sm font-medium' : 'text-gray-500'" x-text="lang==='zh' ? s.zh : s.en"></button>
+            </template>
+          </div>
+        </div>
+      </div>
+      <div class="mt-5 flex items-center gap-3">
+        <button @click="generateBriefing()" :disabled="briefLoading"
+                class="px-4 py-2 bg-brand text-white text-sm rounded-md hover:bg-cyan-600 disabled:opacity-50 flex items-center gap-2">
+          <i data-lucide="sparkles" class="w-4 h-4"></i>
+          <span x-text="briefLoading ? (lang==='zh' ? '生成中…' : 'Generating…') : (lang==='zh' ? '生成简报' : 'Generate briefing')"></span>
+        </button>
+        <span x-show="briefResult" class="text-xs text-gray-400 tabular-nums" x-text="briefResult && new Date(briefResult.generated_at).toLocaleString()"></span>
+      </div>
+    </div>
+
+    <div x-show="briefLoading" class="mt-4 bg-white border border-gray-200 rounded-xl p-6 shadow-sm space-y-3">
+      <div class="h-5 bg-gray-100 rounded animate-pulse w-1/2"></div>
+      <div class="h-3 bg-gray-100 rounded animate-pulse w-3/4"></div>
+      <div class="h-3 bg-gray-100 rounded animate-pulse w-2/3"></div>
+      <div class="h-32 bg-gray-100 rounded animate-pulse"></div>
+    </div>
+
+    <article x-show="briefResult && !briefLoading" class="mt-4 bg-white border border-gray-200 rounded-xl p-7 shadow-sm">
+      <header class="border-b border-gray-100 pb-4 mb-5">
+        <h2 class="text-2xl font-semibold tracking-tight text-gray-900" x-text="briefResult?.title"></h2>
+        <div class="mt-3 flex flex-wrap gap-5 items-center">
+          <div class="flex items-center gap-2">
+            <div class="relative w-10 h-10">
+              <svg viewBox="0 0 36 36" class="w-10 h-10 -rotate-90">
+                <path d="M18 2 a 16 16 0 0 1 0 32 a 16 16 0 0 1 0 -32" fill="none" stroke="#f3f4f6" stroke-width="3"/>
+                <path d="M18 2 a 16 16 0 0 1 0 32 a 16 16 0 0 1 0 -32" fill="none" :stroke="riskColor(briefResult.risk_score||0)" stroke-width="3" :stroke-dasharray="`${(briefResult.risk_score||0)*10},100`" stroke-linecap="round"/>
+              </svg>
+              <span class="absolute inset-0 flex items-center justify-center text-[11px] font-semibold tabular-nums" x-text="(briefResult.risk_score||0).toFixed(1)"></span>
+            </div>
+            <div class="text-xs text-gray-500 leading-tight">
+              <div x-text="lang==='zh' ? '风险评分' : 'Risk score'"></div>
+              <div class="text-gray-400" x-text="'0–10'"></div>
+            </div>
+          </div>
+          <div class="text-xs text-gray-500">
+            <div x-text="lang==='zh' ? '跨语言一致性' : 'Cross-lingual consistency'"></div>
+            <div class="mt-1 flex items-center gap-2">
+              <div class="w-32 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                <div class="h-full bg-brand" :style="`width:${(briefResult.cross_lingual_consistency||0)*100}%`"></div>
+              </div>
+              <span class="tabular-nums text-gray-700" x-text="((briefResult.cross_lingual_consistency||0)*100).toFixed(0)+'%'"></span>
+            </div>
+          </div>
+        </div>
+        <div class="mt-3 flex flex-wrap gap-1.5">
+          <template x-for="a in (briefResult.key_actors||[])" :key="a">
+            <span class="px-2 py-0.5 text-[11px] rounded-full bg-gray-100 text-gray-700" x-text="a"></span>
+          </template>
+        </div>
+      </header>
+      <div x-show="briefResult.timeline?.length" class="mb-6">
+        <div class="text-xs text-gray-500 mb-2" x-text="lang==='zh' ? '关键时间线' : 'Key timeline'"></div>
+        <div class="relative h-12">
+          <div class="absolute left-0 right-0 top-1/2 h-px bg-gray-200"></div>
+          <template x-for="(t,i) in briefResult.timeline" :key="i">
+            <button @click="openDetail(t.event_id)"
+                    class="absolute -translate-x-1/2 group" :style="`left:${timelinePct(briefResult.timeline,i)}%; top:50%`">
+              <span class="block w-2.5 h-2.5 rounded-full bg-brand ring-4 ring-white -translate-y-1/2"></span>
+              <span class="hidden group-hover:block absolute top-5 left-1/2 -translate-x-1/2 whitespace-nowrap px-2 py-1 text-[11px] bg-gray-900 text-white rounded">
+                <span x-text="t.date"></span> · <span x-text="t.title"></span>
+              </span>
+            </button>
+          </template>
+        </div>
+      </div>
+      <div class="space-y-6">
+        <template x-for="(s, idx) in (briefResult.sections||[])" :key="idx">
+          <section>
+            <h3 class="text-xl font-semibold text-gray-900" x-text="s.heading"></h3>
+            <p class="mt-2 text-sm text-gray-700 leading-relaxed whitespace-pre-line" x-html="renderCitations(s.content, s.citations)"></p>
+          </section>
+        </template>
+      </div>
+      <footer class="mt-7 pt-4 border-t border-gray-100 flex items-center gap-2">
+        <button @click="copyBriefingMarkdown()" class="px-3 py-1.5 text-xs border border-gray-200 rounded-md hover:bg-gray-50 flex items-center gap-1.5">
+          <i data-lucide="clipboard-copy" class="w-3.5 h-3.5"></i><span x-text="lang==='zh' ? '复制 Markdown' : 'Copy Markdown'"></span>
+        </button>
+        <button @click="downloadBriefingJson()" class="px-3 py-1.5 text-xs border border-gray-200 rounded-md hover:bg-gray-50 flex items-center gap-1.5">
+          <i data-lucide="download" class="w-3.5 h-3.5"></i><span x-text="lang==='zh' ? '下载 JSON' : 'Download JSON'"></span>
+        </button>
+      </footer>
+    </article>
+
+    <div x-show="!briefLoading && !briefResult" class="mt-4 text-center py-16 text-gray-400">
+      <i data-lucide="file-text" class="w-10 h-10 mx-auto mb-3"></i>
+      <div class="text-sm" x-text="lang==='zh' ? '选择主题与风格后点击生成' : 'Choose topic and style, then generate'"></div>
+    </div>
+  </section>
+
+</main>
+
+<!-- ===== EVENT DETAIL DRAWER (global) ===== -->
+<div x-show="drawer.open" x-transition.opacity class="fixed inset-0 z-40 bg-black/30" @click="closeDetail()"></div>
+<aside class="fixed top-0 right-0 z-50 h-full w-[480px] max-w-full bg-white border-l border-gray-200 shadow-xl transition-transform duration-200"
+       :class="drawer.open ? 'translate-x-0' : 'translate-x-full'">
+  <div class="h-full flex flex-col" x-show="drawer.open">
+    <header class="px-5 py-4 border-b border-gray-100 flex items-start gap-3">
+      <div class="flex-1 min-w-0">
+        <div class="text-[11px] text-gray-400 tabular-nums" x-text="(drawer.event?.date||'') + ' · ' + (drawer.event?.location||'')"></div>
+        <h2 class="text-lg font-semibold text-gray-900 mt-0.5" x-text="drawer.event?.title_zh"></h2>
+        <div class="text-sm text-gray-500" x-text="drawer.event?.title_en"></div>
+      </div>
+      <button @click="closeDetail()" class="p-1.5 rounded-md hover:bg-gray-100"><i data-lucide="x" class="w-4 h-4"></i></button>
+    </header>
+    <div class="flex-1 overflow-y-auto p-5">
+      <div x-show="drawer.loading" class="space-y-3">
+        <div class="h-3 bg-gray-100 rounded animate-pulse w-3/4"></div>
+        <div class="h-3 bg-gray-100 rounded animate-pulse"></div>
+        <div class="h-24 bg-gray-100 rounded animate-pulse"></div>
+      </div>
+      <div x-show="!drawer.loading && drawer.event" class="space-y-5">
+        <div class="grid grid-cols-2 gap-3 text-xs">
+          <div><div class="text-gray-400" x-text="lang==='zh' ? '类别' : 'Category'"></div><div class="font-medium text-gray-800 mt-0.5" x-text="drawer.event?.category"></div></div>
+          <div><div class="text-gray-400" x-text="lang==='zh' ? '主题' : 'Topic'"></div><div class="font-medium text-gray-800 mt-0.5 flex items-center gap-1.5"><span class="w-2 h-2 rounded-sm" :style="`background:${topicColor(drawer.event?.topic_id)}`"></span><span x-text="topicName(drawer.event?.topic_id)"></span></div></div>
+          <div class="col-span-2">
+            <div class="text-gray-400" x-text="lang==='zh' ? '强度' : 'Intensity'"></div>
+            <div class="mt-1 flex items-center gap-2">
+              <div class="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden"><div class="h-full bg-accent" :style="`width:${(drawer.event?.intensity||0)*10}%`"></div></div>
+              <span class="text-xs text-gray-700 tabular-nums" x-text="drawer.event?.intensity"></span>
+            </div>
+          </div>
+          <div class="col-span-2">
+            <div class="text-gray-400" x-text="lang==='zh' ? '主要参与方' : 'Key actors'"></div>
+            <div class="mt-1 flex flex-wrap gap-1">
+              <template x-for="a in (drawer.event?.actors||[])" :key="a"><span class="px-1.5 py-0.5 rounded bg-gray-100 text-gray-700 text-[11px]" x-text="a"></span></template>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div class="flex items-center gap-2 text-xs mb-2">
+            <button @click="drawer.summaryTab='zh'" class="px-2 py-1 rounded" :class="drawer.summaryTab==='zh' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600'">中文摘要</button>
+            <button @click="drawer.summaryTab='en'" class="px-2 py-1 rounded" :class="drawer.summaryTab==='en' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600'">EN summary</button>
+          </div>
+          <p class="text-sm text-gray-700 leading-relaxed" x-text="drawer.summaryTab==='zh' ? drawer.event?.summary_zh : drawer.event?.summary_en"></p>
+        </div>
+        <div>
+          <div class="text-xs text-gray-400 mb-2" x-text="lang==='zh' ? '多源证据' : 'Multi-source evidence'"></div>
+          <div class="space-y-2">
+            <template x-for="a in (drawer.articles||[])" :key="a.article_id">
+              <div class="border border-gray-200 rounded-lg">
+                <button @click="a._open = !a._open" class="w-full px-3 py-2 flex items-center justify-between text-left">
+                  <div class="min-w-0">
+                    <div class="text-sm text-gray-900 truncate" x-text="a.title"></div>
+                    <div class="text-[11px] text-gray-400 mt-0.5 tabular-nums" x-text="a.source + ' · ' + a.lang.toUpperCase() + ' · ' + a.date"></div>
+                  </div>
+                  <i :data-lucide="a._open ? 'chevron-up' : 'chevron-down'" class="w-4 h-4 text-gray-400 shrink-0"></i>
+                </button>
+                <div x-show="a._open" class="px-3 pb-3 text-xs text-gray-600 leading-relaxed border-t border-gray-100 pt-2" x-text="a.content"></div>
+              </div>
+            </template>
+          </div>
+        </div>
+        <div x-show="(drawer.related||[]).length">
+          <div class="text-xs text-gray-400 mb-2" x-text="lang==='zh' ? '相关事件' : 'Related events'"></div>
+          <div class="space-y-1">
+            <template x-for="r in drawer.related" :key="r.event_id">
+              <button @click="openDetail(r.event_id)" class="w-full text-left px-3 py-2 rounded-md hover:bg-gray-50 border border-gray-100 flex items-center gap-2">
+                <span class="text-[10px] uppercase px-1.5 py-0.5 rounded bg-gray-100 text-gray-600" x-text="lang==='zh' ? r.label_zh : r.label_en"></span>
+                <span class="text-sm text-gray-800 truncate" x-text="lang==='zh' ? r.title_zh : r.title_en"></span>
+              </button>
+            </template>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</aside>
+
+</body>
+</html>
